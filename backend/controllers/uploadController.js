@@ -295,7 +295,7 @@ exports.getContent = async (req, res) => {
 
         if (!updatedData) {
           await Upload.deleteOne({ uniqueId: id });
-          return res.status(403).json({ error: "Access Forbidden: Max views reached." });
+          return res.status(403).json({ error: "Access Forbidden: Max access limit reached." });
         }
         data = updatedData;
       } else {
@@ -374,7 +374,7 @@ exports.downloadContent = async (req, res) => {
           if (!updatedData) {
             await Upload.deleteOne({ uniqueId: id });
             await cloudinary.uploader.destroy(`linkvault/${id}`).catch(() => {});
-            return res.status(403).json({ error: "Access Forbidden: Max views reached." });
+            return res.status(403).json({ error: "Access Forbidden: Max access limit reached." });
           }
 
           data = updatedData;

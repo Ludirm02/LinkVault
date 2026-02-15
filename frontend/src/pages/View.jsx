@@ -93,10 +93,21 @@ const View = () => {
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      const msg =
-        typeof err.response?.data?.error === "string"
-          ? err.response.data.error
-          : "Download failed.";
+      let msg = "Download failed.";
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const raw = await data.text();
+          const parsed = JSON.parse(raw);
+          if (typeof parsed?.error === "string" && parsed.error.trim()) {
+            msg = parsed.error;
+          }
+        } catch (_e) {
+          // keep fallback message
+        }
+      } else if (typeof data?.error === "string" && data.error.trim()) {
+        msg = data.error;
+      }
       toast.error(msg);
     } finally {
       setDownloading(false);
