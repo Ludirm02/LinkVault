@@ -14,11 +14,13 @@ const View = () => {
   // Password States
   const [isLocked, setIsLocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [unlockPassword, setUnlockPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  // --- CRITICAL: Prevent Double Fetch ---
-  const dataFetched = useRef(false); 
+  // Prevent duplicate fetch for same id under StrictMode.
+  const fetchedForId = useRef(null);
 
   const fetchData = async (pwd = "") => {
     try {
@@ -33,7 +35,10 @@ const View = () => {
       setData(res.data);
       setIsLocked(false);
       setError("");
-      if (pwd) toast.success("Unlocked successfully!");
+      if (pwd) {
+        setUnlockPassword(pwd);
+        toast.success("Unlocked successfully!");
+      }
       
     } catch (err) {
       const status = err.response?.status;
@@ -70,17 +75,51 @@ const View = () => {
     fetchData(passwordInput);
   };
 
+  const handleFileDownload = async () => {
+    if (!data?.fileUrl) return;
+    try {
+      setDownloading(true);
+      const response = await axios.get(data.fileUrl, {
+        responseType: "blob",
+        headers: unlockPassword ? { "x-link-password": unlockPassword } : {},
+      });
+
+      const objectUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = data.originalName || "download.bin";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      const msg =
+        typeof err.response?.data?.error === "string"
+          ? err.response.data.error
+          : "Download failed.";
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const copyText = async () => {
     if (!data?.textContent) return;
-    await navigator.clipboard.writeText(data.textContent);
-    setCopiedText(true);
-    toast.success("Text copied!");
-    setTimeout(() => setCopiedText(false), 1500);
+    try {
+      await navigator.clipboard.writeText(data.textContent);
+      setCopiedText(true);
+      toast.success("Text copied!");
+      setTimeout(() => setCopiedText(false), 1500);
+    } catch (_err) {
+      toast.error("Clipboard permission denied.");
+    }
   };
 
   useEffect(() => {
-    if (dataFetched.current) return;
-    dataFetched.current = true;
+    if (fetchedForId.current === id) return;
+    fetchedForId.current = id;
+    setUnlockPassword("");
+    setPasswordInput("");
     fetchData();
   }, [id]);
 
@@ -181,15 +220,14 @@ const View = () => {
             <p className="text-lg font-medium text-gray-200 mb-1 px-4 truncate">{data.originalName}</p>
             <p className="text-xs text-gray-500 uppercase tracking-widest mb-6">Ready for Download</p>
             
-            <a
-              href={data.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={handleFileDownload}
+              disabled={downloading}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-500/25 active:scale-95"
             >
               <Download className="w-5 h-5" />
-              Download File
-            </a>
+              {downloading ? "Downloading..." : "Download File"}
+            </button>
           </div>
         )}
 

@@ -5,12 +5,118 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const https = require("https");
 const fs = require("fs/promises");
+const path = require("path");
+
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:5000";
+const CLOUDINARY_UPLOAD_RETRIES = 2;
+const CLOUDINARY_UPLOAD_TIMEOUT_MS = 20000;
+const CLOUDINARY_DEBUG_ERRORS = String(process.env.CLOUDINARY_DEBUG_ERRORS || "").toLowerCase() === "true";
+const BLOCKED_EXTENSIONS = new Set([".exe"]);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetriableCloudinaryError = (err) => {
+  const msg = String(err?.message || "").toLowerCase();
+  const code = err?.http_code;
+
+  if (code === 429) return true;
+  if (typeof code === "number" && code >= 500) return true;
+  if (
+    msg.includes("timeout") ||
+    msg.includes("etimedout") ||
+    msg.includes("econnreset") ||
+    msg.includes("enotfound") ||
+    msg.includes("network")
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+const uploadToCloudinaryWithRetry = async (filePath, uniqueId) => {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= CLOUDINARY_UPLOAD_RETRIES; attempt += 1) {
+    try {
+      return await cloudinary.uploader.upload(filePath, {
+        resource_type: "auto",
+        public_id: uniqueId,
+        folder: "linkvault",
+        timeout: CLOUDINARY_UPLOAD_TIMEOUT_MS,
+      });
+    } catch (err) {
+      lastError = err;
+      if (attempt < CLOUDINARY_UPLOAD_RETRIES && isRetriableCloudinaryError(err)) {
+        await sleep(400 * attempt);
+      } else {
+        break;
+      }
+    }
+  }
+
+  throw lastError;
+};
 
 const isTruthy = (value) => {
   if (typeof value === "boolean") return value;
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+};
+
+const sanitizeDownloadFilename = (name) => {
+  if (!name || typeof name !== "string") return "download.bin";
+  return name
+    .replace(/[\r\n"]/g, "_")
+    .replace(/[^\x20-\x7E]/g, "_")
+    .trim()
+    .slice(0, 180) || "download.bin";
+};
+
+const hasCloudinaryConfig = () => {
+  return (
+    typeof process.env.CLOUDINARY_CLOUD_NAME === "string" &&
+    process.env.CLOUDINARY_CLOUD_NAME.trim() !== "" &&
+    typeof process.env.CLOUDINARY_API_KEY === "string" &&
+    process.env.CLOUDINARY_API_KEY.trim() !== "" &&
+    typeof process.env.CLOUDINARY_API_SECRET === "string" &&
+    process.env.CLOUDINARY_API_SECRET.trim() !== ""
+  );
+};
+
+const classifyCloudinaryError = (err) => {
+  const msg = String(err?.message || "").toLowerCase();
+  const code = err?.http_code;
+  const exposeRawMessage = CLOUDINARY_DEBUG_ERRORS || process.env.NODE_ENV !== "production";
+
+  if (!hasCloudinaryConfig() || msg.includes("must supply api_key")) {
+    return { status: 500, error: "Cloudinary is not configured on the server." };
+  }
+  if (code === 401 || code === 403 || msg.includes("invalid signature") || msg.includes("not authorized")) {
+    return { status: 502, error: "Cloudinary credentials were rejected. Check API key/secret." };
+  }
+  if (code === 429 || msg.includes("rate limit")) {
+    return { status: 503, error: "Cloudinary rate limit reached. Please retry in a moment." };
+  }
+  if (
+    msg.includes("etimedout") ||
+    msg.includes("timeout") ||
+    msg.includes("econnreset") ||
+    msg.includes("enotfound") ||
+    msg.includes("network")
+  ) {
+    return { status: 502, error: "File storage network issue. Please try again." };
+  }
+  if (typeof code === "number" || msg.includes("cloudinary")) {
+    const fallbackMessage = exposeRawMessage
+      ? `Cloudinary upload failed: ${String(err?.message || "Unknown error")}`
+      : "Cloudinary upload failed. Please retry.";
+    return { status: 502, error: fallbackMessage };
+  }
+
+  return null;
 };
 
 // --- Controller 1: Handle Uploads ---
@@ -28,6 +134,9 @@ exports.uploadContent = async (req, res) => {
 
     // 1. File Metadata Validation (supports any file type)
     if (file) {
+      if (typeof file.size === "number" && file.size <= 0) {
+        return res.status(400).json({ error: "File cannot be empty." });
+      }
       if (!file.originalname || typeof file.originalname !== "string") {
         return res.status(400).json({ error: "Invalid file name." });
       }
@@ -37,15 +146,23 @@ exports.uploadContent = async (req, res) => {
       if (file.originalname.includes("\0")) {
         return res.status(400).json({ error: "Invalid file name." });
       }
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (BLOCKED_EXTENSIONS.has(ext)) {
+        return res.status(400).json({ error: "This file type is not allowed." });
+      }
     }
 
     const burnAfterRead = isTruthy(oneTimeView);
 
     // 2. Validate Max Downloads
     let finalMaxDownloads = null;
-    if (maxDownloads) {
-      const parsed = parseInt(maxDownloads);
-      if (isNaN(parsed) || parsed < 1) {
+    if (maxDownloads !== undefined && maxDownloads !== null && String(maxDownloads).trim() !== "") {
+      const rawMaxDownloads = String(maxDownloads).trim();
+      if (!/^\d+$/.test(rawMaxDownloads)) {
+        return res.status(400).json({ error: "Max downloads must be a whole number." });
+      }
+      const parsed = Number(rawMaxDownloads);
+      if (!Number.isInteger(parsed) || parsed < 1) {
         return res.status(400).json({ error: "Max downloads must be at least 1." });
       }
       finalMaxDownloads = parsed;
@@ -65,9 +182,11 @@ exports.uploadContent = async (req, res) => {
       Number.isInteger(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 10;
 
     let hashedPassword = null;
-    if (password) {
+    const normalizedPassword =
+      typeof password === "string" ? password.trim() : "";
+    if (normalizedPassword) {
       const salt = await bcrypt.genSalt(10);
-      hashedPassword = await bcrypt.hash(password, salt);
+      hashedPassword = await bcrypt.hash(normalizedPassword, salt);
     }
 
     // Prepare common data
@@ -85,11 +204,10 @@ exports.uploadContent = async (req, res) => {
     if (file) {
       // Wrap Cloudinary upload in a Promise to await it properly
       try {
-        const result = await cloudinary.uploader.upload(file.path, {
-          resource_type: "auto",
-          public_id: uniqueId,
-          folder: "linkvault",
-        });
+        if (!hasCloudinaryConfig()) {
+          return res.status(500).json({ error: "Cloudinary is not configured on the server." });
+        }
+        const result = await uploadToCloudinaryWithRetry(file.path, uniqueId);
 
         uploadData.fileUrl = result.secure_url;
         uploadData.originalName = file.originalname;
@@ -100,7 +218,7 @@ exports.uploadContent = async (req, res) => {
         res.status(201).json({
           message: "Upload successful!",
           uniqueId,
-          link: `http://localhost:5173/view/${uniqueId}`,
+          link: `${FRONTEND_BASE_URL}/view/${uniqueId}`,
           deleteToken,
           expiresAt: newUpload.expiresAt
         });
@@ -119,7 +237,7 @@ exports.uploadContent = async (req, res) => {
       res.status(201).json({
         message: "Text uploaded successfully!",
         uniqueId,
-        link: `http://localhost:5173/view/${uniqueId}`,
+        link: `${FRONTEND_BASE_URL}/view/${uniqueId}`,
         deleteToken,
         expiresAt: newUpload.expiresAt
       });
@@ -127,6 +245,10 @@ exports.uploadContent = async (req, res) => {
 
   } catch (err) {
     console.error("Upload Error:", err);
+    const cloudinaryErr = classifyCloudinaryError(err);
+    if (cloudinaryErr) {
+      return res.status(cloudinaryErr.status).json({ error: cloudinaryErr.error });
+    }
     res.status(500).json({ error: "Server error." });
   }
 };
@@ -162,25 +284,23 @@ exports.getContent = async (req, res) => {
       if (!isMatch) return res.status(403).json({ error: "Incorrect Password" });
     }
 
-    // 3. ATOMIC COUNTER & Max Views Check
-    if (data.maxDownloads !== null) {
-        // Try to increment ONLY if current < max
+    // 3. Count access for text here. File counts are enforced at actual download endpoint.
+    if (data.type === "text") {
+      if (data.maxDownloads !== null) {
         const updatedData = await Upload.findOneAndUpdate(
-            { uniqueId: id, currentDownloads: { $lt: data.maxDownloads } },
-            { $inc: { currentDownloads: 1 } },
-            { new: true }
+          { uniqueId: id, currentDownloads: { $lt: data.maxDownloads } },
+          { $inc: { currentDownloads: 1 } },
+          { new: true }
         );
 
         if (!updatedData) {
-            // Limit reached: Delete and Return 403
-            await Upload.deleteOne({ uniqueId: id });
-            if (data.type === 'file') await cloudinary.uploader.destroy(`linkvault/${id}`);
-            return res.status(403).json({ error: "Access Forbidden: Max views reached." });
+          await Upload.deleteOne({ uniqueId: id });
+          return res.status(403).json({ error: "Access Forbidden: Max views reached." });
         }
         data = updatedData;
-    } else {
-        // Just increment stats
+      } else {
         await Upload.updateOne({ uniqueId: id }, { $inc: { currentDownloads: 1 } });
+      }
     }
 
     // 4. One-Time View (Text Only)
@@ -198,9 +318,7 @@ exports.getContent = async (req, res) => {
     
     // Don't send the real file URL yet if password protected, or send a proxy URL
     if (data.type === 'file') {
-        responseData.fileUrl = `http://localhost:5000/api/upload/download/${id}`;
-        // If they just unlocked it with a password, append it to the download link
-        if (password) responseData.fileUrl += `?password=${encodeURIComponent(password)}`;
+        responseData.fileUrl = `${BACKEND_BASE_URL}/api/upload/download/${id}`;
     }
 
     // 6. No Cache Headers
@@ -220,9 +338,11 @@ exports.getContent = async (req, res) => {
 exports.downloadContent = async (req, res) => {
     try {
         const { id } = req.params;
-        const password = (typeof req.query.password === "string" ? req.query.password : "").trim();
+        const passwordFromQuery = typeof req.query.password === "string" ? req.query.password : "";
+        const passwordFromHeader = typeof req.header("x-link-password") === "string" ? req.header("x-link-password") : "";
+        const password = (passwordFromHeader || passwordFromQuery || "").trim();
 
-        const data = await Upload.findOne({ uniqueId: id });
+        let data = await Upload.findOne({ uniqueId: id });
 
         // --- REQUIREMENT MET: Return 403 for Missing/Expired ---
         if (!data) {
@@ -243,8 +363,24 @@ exports.downloadContent = async (req, res) => {
             if (!isMatch) return res.status(403).json({ error: "Wrong Password" });
         }
 
-        // NOTE: We do NOT increment count here. 
-        // It was incremented in 'getContent' (Metadata View).
+        // Enforce max downloads at actual file download.
+        if (data.maxDownloads !== null) {
+          const updatedData = await Upload.findOneAndUpdate(
+            { uniqueId: id, currentDownloads: { $lt: data.maxDownloads } },
+            { $inc: { currentDownloads: 1 } },
+            { new: true }
+          );
+
+          if (!updatedData) {
+            await Upload.deleteOne({ uniqueId: id });
+            await cloudinary.uploader.destroy(`linkvault/${id}`).catch(() => {});
+            return res.status(403).json({ error: "Access Forbidden: Max views reached." });
+          }
+
+          data = updatedData;
+        } else {
+          await Upload.updateOne({ uniqueId: id }, { $inc: { currentDownloads: 1 } });
+        }
 
         // Headers
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -252,8 +388,13 @@ exports.downloadContent = async (req, res) => {
         res.setHeader('Expires', '0');
 
         // Stream File from Cloudinary
-        https.get(data.fileUrl, (stream) => {
-            res.setHeader('Content-Disposition', `attachment; filename="${data.originalName}"`);
+        const request = https.get(data.fileUrl, (stream) => {
+            if (!stream || stream.statusCode !== 200) {
+                stream?.resume();
+                return res.status(502).json({ error: "File download failed at storage provider." });
+            }
+            const safeName = sanitizeDownloadFilename(data.originalName);
+            res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
             res.setHeader('Content-Type', 'application/octet-stream');
             stream.pipe(res);
 
@@ -270,9 +411,21 @@ exports.downloadContent = async (req, res) => {
               res.on("finish", cleanup);
               res.on("close", cleanup);
             }
-        }).on('error', (err) => {
+        });
+
+        request.setTimeout(30000, () => {
+            request.destroy(new Error("Storage provider timeout"));
+        });
+
+        request.on('error', (err) => {
             console.error("Stream Error:", err);
-            res.status(500).end();
+            if (!res.headersSent) {
+              const timeout = String(err?.message || "").toLowerCase().includes("timeout");
+              return res.status(timeout ? 504 : 500).json({
+                error: timeout ? "Storage provider timeout." : "Download failed.",
+              });
+            }
+            res.end();
         });
 
     } catch (err) {

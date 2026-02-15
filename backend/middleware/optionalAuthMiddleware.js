@@ -19,8 +19,8 @@ module.exports = function (req, res, next) {
     req.user = decoded.user; // Save User ID
     next();
   } catch (err) {
-    // 4. If token is INVALID (e.g. expired), tell frontend to logout
-    console.error("Optional Auth Error:", err.message);
-    return res.status(401).json({ error: "Session expired. Please logout and login again." });
+    // Invalid token should not block optional-auth endpoints.
+    req.user = null;
+    next();
   }
 };

@@ -9,7 +9,7 @@ LinkVault is a secure, ephemeral file-sharing application designed for privacy a
 * **Backend:** Node.js, Express
 * **Database:** MongoDB, Mongoose
 * **Storage:** Cloudinary (with local disk buffering)
-* **Security:** Helmet, Bcrypt, Crypto, JWT
+* **Security:** Bcrypt, Crypto, JWT, strict access checks
 
 ----
 
@@ -53,7 +53,10 @@ JWT_SECRET=your_super_secret_jwt_key
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-MAX_FILE_SIZE_MB=100
+MAX_FILE_SIZE_MB=10
+FRONTEND_BASE_URL=http://localhost:5173
+BACKEND_BASE_URL=http://localhost:5000
+CLOUDINARY_DEBUG_ERRORS=false
 ```
 
 ---
@@ -118,6 +121,7 @@ Auth: Public
 **GET** `/api/upload/download/:id`  
 Securely stream the uploaded file.  
 Enforces password protection, expiry checks, and atomic download limit validation.  
+For password-protected files, send password in request header: `x-link-password`.  
 Returns 403 if link is invalid, expired, or download limit is reached.  
 Auth: Public  
 
@@ -188,7 +192,8 @@ const updatedDoc = await Upload.findOneAndUpdate(
 
 If condition fails, request returns **403 Forbidden**.
 
-This prevents race conditions completely.
+This prevents race conditions completely.  
+Text links are counted on metadata view; file links are counted on actual download request.
 
 ---
 
@@ -198,6 +203,7 @@ This prevents race conditions completely.
 - This prevents brute-force ID discovery.
 - Password hashes and deleteTokens are stripped from all JSON responses.
 - File downloads are always gated through backend — raw Cloudinary URLs are never exposed.
+- Security response headers are set (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`).
 
 ---
 
@@ -237,7 +243,7 @@ This produces 32-character hex IDs, making brute-force attacks mathematically in
 
 ### Limitations
 
-- File size capped at 100MB (configurable via `.env`).
+- File size capped at 10MB by default (configurable via `.env`; keep aligned with your Cloudinary plan).
 - No resumable uploads.
 - No audit logging (privacy-focused design).
 - Free-tier Cloudinary bandwidth limitations apply.
@@ -259,6 +265,8 @@ This produces 32-character hex IDs, making brute-force attacks mathematically in
 
 ##  Project Structure
 
+Data flow diagram file: `DATA_FLOW_DIAGRAM.md`
+
 ```
 linkvault/
 │
@@ -273,8 +281,7 @@ linkvault/
 └── frontend/
     ├── src/
     ├── components/
-    ├── pages/
-    └── services/
+    └── pages/
 ```
 
 ---

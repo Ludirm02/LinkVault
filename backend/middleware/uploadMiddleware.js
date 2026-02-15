@@ -2,7 +2,7 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 
-const MAX_FILE_SIZE_MB = parseInt(process.env.MAX_FILE_SIZE_MB || "100", 10);
+const MAX_FILE_SIZE_MB = parseInt(process.env.MAX_FILE_SIZE_MB || "10", 10);
 const tmpUploadDir = path.join(__dirname, "..", "uploads", "tmp");
 fs.mkdirSync(tmpUploadDir, { recursive: true });
 

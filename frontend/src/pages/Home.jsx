@@ -64,13 +64,11 @@ const Home = () => {
 
     try {
       const res = await axios.post("http://localhost:5000/api/upload", formData, {
-        headers: { 
-  "Content-Type": "multipart/form-data",
-  ...(token ? { "x-auth-token": token } : {}) // Only add header if token exists
-},
+        headers: token ? { "x-auth-token": token } : {},
         onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) return;
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(percent);
+          setUploadProgress(Number.isFinite(percent) ? percent : 0);
         }
       });
 
@@ -108,12 +106,16 @@ const Home = () => {
     }
   };
 
-  const copyToClipboard = (txt, isToken = false) => {
+  const copyToClipboard = async (txt, isToken = false) => {
     if (!txt) return;
-    navigator.clipboard.writeText(txt);
-    toast.success("Copied!");
-    if (isToken) { setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); } 
-    else { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); }
+    try {
+      await navigator.clipboard.writeText(txt);
+      toast.success("Copied!");
+      if (isToken) { setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); } 
+      else { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); }
+    } catch (_err) {
+      toast.error("Clipboard permission denied.");
+    }
   };
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
