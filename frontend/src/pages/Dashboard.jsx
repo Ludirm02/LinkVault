@@ -12,7 +12,7 @@ const Dashboard = () => {
   const [uploads, setUploads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
-  const [stats, setStats] = useState({ totalFiles: 0, totalViews: 0, activeLinks: 0 });
+  const [stats, setStats] = useState({ totalFiles: 0, totalAccesses: 0, activeLinks: 0 });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,9 +54,9 @@ const Dashboard = () => {
 
   const calculateStats = (data) => {
     const totalFiles = data.length;
-    const totalViews = data.reduce((acc, curr) => acc + (curr.currentDownloads || 0), 0);
+    const totalAccesses = data.reduce((acc, curr) => acc + (curr.currentDownloads || 0), 0);
     const activeLinks = data.filter(item => new Date(item.expiresAt) > new Date()).length;
-    setStats({ totalFiles, totalViews, activeLinks });
+    setStats({ totalFiles, totalAccesses, activeLinks });
   };
 
   const handleDelete = async (id) => {
@@ -128,8 +128,8 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className="p-3 bg-purple-500/10 rounded-xl"><BarChart3 className="w-8 h-8 text-purple-400" /></div>
               <div>
-                <p className="text-gray-400 text-sm">Total Views</p>
-                <h3 className="text-3xl font-bold">{stats.totalViews}</h3>
+                <p className="text-gray-400 text-sm">Total Accesses</p>
+                <h3 className="text-3xl font-bold">{stats.totalAccesses}</h3>
               </div>
             </div>
           </motion.div>
@@ -159,7 +159,7 @@ const Dashboard = () => {
                 <tr>
                   <th className="p-6">File Name</th>
                   <th className="p-6">Type</th>
-                  <th className="p-6">Views</th>
+                  <th className="p-6">Accesses</th>
                   <th className="p-6">Expires</th>
                   <th className="p-6 text-right">Actions</th>
                 </tr>

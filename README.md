@@ -107,6 +107,7 @@ http://localhost:5173
 **POST** `/api/upload`  
 Upload a file or secure text content.  
 Returns a unique shareable ID and a delete token.  
+Supports `maxDownloads` as a unified access limit for both text and file shares.  
 Auth: Optional  
 
 ---
@@ -194,6 +195,21 @@ If condition fails, request returns **403 Forbidden**.
 
 This prevents race conditions completely.  
 Text links are counted on metadata view; file links are counted on actual download request.
+
+---
+
+### 2.1 Unified Access Count (View/Download)
+
+The assignment mentions "Maximum download/view count".  
+I implemented this as one unified "access limit" to avoid ambiguous behavior:
+
+| Content Type | Action | Counts as Access? | Reason |
+|--------------|--------|-------------------|--------|
+| Text         | Open link/view text | Yes (+1) | Viewing text is the actual content consumption |
+| File         | Open metadata page | No | Only filename/details are shown |
+| File         | Click download | Yes (+1) | Downloading is the actual content consumption |
+
+This makes the rule predictable for users and easier to evaluate during testing.
 
 ---
 

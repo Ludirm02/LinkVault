@@ -193,7 +193,7 @@ const Home = () => {
             </div>
             <div className="group flex items-center bg-gray-900/50 border border-gray-600 rounded-xl px-4 focus-within:border-blue-500">
                 <Eye className="w-4 h-4 text-gray-500" />
-                <input type="number" placeholder="Max views" value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)} className="w-full bg-transparent border-none text-white py-3 px-3 focus:ring-0 outline-none text-sm" />
+                <input type="number" placeholder="Max access" value={maxDownloads} onChange={(e) => setMaxDownloads(e.target.value)} className="w-full bg-transparent border-none text-white py-3 px-3 focus:ring-0 outline-none text-sm" />
             </div>
             <div className="group flex items-center bg-gray-900/50 border border-gray-600 rounded-xl px-4 focus-within:border-blue-500 relative">
                 <Clock className="w-4 h-4 text-gray-500" />
