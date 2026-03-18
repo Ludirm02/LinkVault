@@ -3,7 +3,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useNavigate, Link } from "react-router-dom";
 import { LogIn, Mail, Lock } from "lucide-react";
-import { motion } from "framer-motion";
+import { API_BASE_URL } from "../config";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -23,7 +23,7 @@ const Login = () => {
     };
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", payload);
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, payload);
       
       // Save Token & Username
       localStorage.setItem("token", res.data.token);
@@ -43,7 +43,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700/50">
+      <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700/50">
         <h2 className="text-3xl font-bold text-center text-white mb-2">Welcome Back</h2>
         <p className="text-center text-gray-400 mb-8">Login to access your secure vault.</p>
         
@@ -63,7 +63,7 @@ const Login = () => {
         <p className="mt-6 text-center text-gray-400 text-sm">
           Don't have an account? <Link to="/register" className="text-blue-400 hover:text-blue-300 font-medium">Register</Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 };

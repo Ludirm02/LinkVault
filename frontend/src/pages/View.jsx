@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { FileText, Download, Lock, AlertTriangle, Loader2, Unlock, ShieldCheck, Terminal, Copy, Check } from "lucide-react";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
+import { API_BASE_URL } from "../config";
 
 const View = () => {
   const { id } = useParams();
@@ -22,12 +22,12 @@ const View = () => {
   // Prevent duplicate fetch for same id under StrictMode.
   const fetchedForId = useRef(null);
 
-  const fetchData = async (pwd = "") => {
+  const fetchData = useCallback(async (pwd = "") => {
     try {
       if (!pwd) setLoading(true); 
 
       const token = localStorage.getItem("token");
-      const res = await axios.get(`http://localhost:5000/api/upload/${id}`, {
+      const res = await axios.get(`${API_BASE_URL}/api/upload/${id}`, {
         params: pwd ? { password: pwd, ts: Date.now() } : { ts: Date.now() },
         headers: token ? { "x-auth-token": token } : {},
       });
@@ -67,7 +67,7 @@ const View = () => {
       setLoading(false);
       setUnlocking(false);
     }
-  };
+  }, [id]);
 
   const handleUnlock = () => {
     if (!passwordInput) return toast.error("Enter a password");
@@ -102,7 +102,7 @@ const View = () => {
           if (typeof parsed?.error === "string" && parsed.error.trim()) {
             msg = parsed.error;
           }
-        } catch (_e) {
+        } catch {
           // keep fallback message
         }
       } else if (typeof data?.error === "string" && data.error.trim()) {
@@ -121,7 +121,7 @@ const View = () => {
       setCopiedText(true);
       toast.success("Text copied!");
       setTimeout(() => setCopiedText(false), 1500);
-    } catch (_err) {
+    } catch {
       toast.error("Clipboard permission denied.");
     }
   };
@@ -132,7 +132,7 @@ const View = () => {
     setUnlockPassword("");
     setPasswordInput("");
     fetchData();
-  }, [id]);
+  }, [id, fetchData]);
 
   // 1. Loading State
   if (loading) return (
@@ -144,11 +144,7 @@ const View = () => {
   // 2. Locked State
   if (isLocked) return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700 text-center"
-      >
+      <div className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700 text-center">
         <div className="bg-gray-700/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-gray-800">
           <Lock className="w-10 h-10 text-yellow-400" />
         </div>
@@ -171,29 +167,25 @@ const View = () => {
           {unlocking ? <Loader2 className="animate-spin w-5 h-5"/> : <Unlock className="w-5 h-5" />}
           {unlocking ? "Verifying..." : "Unlock Content"}
         </button>
-      </motion.div>
+      </div>
     </div>
   );
 
   // 3. Error State
   if (error) return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white p-4">
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-center">
+      <div className="text-center">
         <AlertTriangle className="w-20 h-20 text-red-500 mb-6 mx-auto" />
         <h1 className="text-3xl font-bold mb-3">Link Unavailable</h1>
         <p className="text-gray-400 bg-gray-800 px-6 py-2 rounded-full inline-block border border-gray-700">{error}</p>
-      </motion.div>
+      </div>
     </div>
   );
 
   // 4. Success State
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 pt-20">
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }} 
-        animate={{ y: 0, opacity: 1 }}
-        className="w-full max-w-lg bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-sm text-center"
-      >
+      <div className="w-full max-w-lg bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-sm text-center">
         
         <div className="flex items-center justify-center gap-2 mb-8">
             <ShieldCheck className="w-8 h-8 text-green-400" />
@@ -247,7 +239,7 @@ const View = () => {
             <Lock className="w-3 h-3" /> End-to-End Encryption • Auto-Expiry Active
             </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

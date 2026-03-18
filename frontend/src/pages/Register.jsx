@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { API_BASE_URL } from "../config";
 
 const Register = () => {
   const [formData, setFormData] = useState({ username: "", email: "", password: "" });
@@ -19,7 +20,7 @@ const Register = () => {
       return;
     }
     try {
-      await axios.post("http://localhost:5000/api/auth/register", payload);
+      await axios.post(`${API_BASE_URL}/api/auth/register`, payload);
       localStorage.removeItem("token");
       localStorage.removeItem("username");
       toast.success("Registered successfully. Please login.");

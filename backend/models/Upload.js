@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const uploadSchema = new mongoose.Schema({
-  uniqueId: { type: String, required: true, unique: true },
+  uniqueId: { type: String, required: true, unique: true },// hard to guess url 
   type: { type: String, enum: ["file", "text"], required: true },
   textContent: { type: String },
   fileUrl: { type: String },

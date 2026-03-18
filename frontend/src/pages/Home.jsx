@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Upload, Copy, Check, Link as LinkIcon, Loader2, Lock, Flame, Eye, EyeOff, Trash2, Clock } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion"; 
+import { AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "../config";
 
 const Home = () => {
   // --- STATE MANAGEMENT ---
@@ -63,7 +64,7 @@ const Home = () => {
     // ----------------------------------------------------
 
     try {
-      const res = await axios.post("http://localhost:5000/api/upload", formData, {
+      const res = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
         headers: token ? { "x-auth-token": token } : {},
         onUploadProgress: (progressEvent) => {
           if (!progressEvent.total) return;
@@ -113,7 +114,7 @@ const Home = () => {
       toast.success("Copied!");
       if (isToken) { setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); } 
       else { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); }
-    } catch (_err) {
+    } catch {
       toast.error("Clipboard permission denied.");
     }
   };
@@ -137,7 +138,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-xl">
+      <div className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-xl">
         
         <div className="text-center mb-8">
           <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">LinkVault</h1>
@@ -145,11 +146,7 @@ const Home = () => {
           
           {/* USER BADGE */}
           {username && (
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.8 }}
-               animate={{ opacity: 1, scale: 1 }}
-               className="mt-4 inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 shadow-sm shadow-blue-500/10"
-             >
+             <div className="mt-4 inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 shadow-sm shadow-blue-500/10">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
@@ -157,7 +154,7 @@ const Home = () => {
                 <span className="text-xs font-semibold text-blue-300 tracking-wide uppercase">
                   Logged in as <span className="text-white ml-1">{username}</span>
                 </span>
-             </motion.div>
+             </div>
           )}
         </div>
 
@@ -236,7 +233,7 @@ const Home = () => {
         {/* Results Area */}
         <AnimatePresence>
           {generatedLink && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-6 space-y-3 overflow-hidden">
+            <div className="mt-6 space-y-3 overflow-hidden">
               <div className="bg-green-500/10 p-4 rounded-xl border border-green-500/20 group hover:border-green-500/40 transition-colors">
                 <p className="text-xs text-green-400 mb-1.5 uppercase font-bold tracking-wider">Shareable Link</p>
                 <div className="flex items-center gap-2">
@@ -251,10 +248,10 @@ const Home = () => {
                   <button onClick={() => copyToClipboard(deleteToken, true)} className="text-red-400 hover:text-white transition-colors">{copiedToken ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}</button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   );
 };

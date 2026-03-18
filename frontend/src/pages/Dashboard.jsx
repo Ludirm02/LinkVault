@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { 
-  FileText, Trash2, Eye, Clock, Copy, Check, 
-  BarChart3, Shield, Activity, Calendar 
+  FileText, Trash2, Eye, Clock, Copy,
+  BarChart3, Shield, Activity
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { API_BASE_URL } from "../config";
 
 const Dashboard = () => {
   const [uploads, setUploads] = useState([]);
@@ -15,16 +15,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState({ totalFiles: 0, totalAccesses: 0, activeLinks: 0 });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // 1. Get Username
-    const storedUser = localStorage.getItem("username");
-    if (storedUser) setUsername(storedUser);
-
-    // 2. Fetch Data
-    fetchUploads();
-  }, []);
-
-  const fetchUploads = async () => {
+  const fetchUploads = useCallback(async () => {
     try {
       const rawToken = localStorage.getItem("token");
       const token = rawToken && rawToken !== "undefined" && rawToken !== "null" ? rawToken : null;
@@ -33,7 +24,7 @@ const Dashboard = () => {
         navigate("/login");
         return;
       }
-      const res = await axios.get("http://localhost:5000/api/upload/my/list", {
+      const res = await axios.get(`${API_BASE_URL}/api/upload/my/list`, {
         headers: { "x-auth-token": token }
       });
       setUploads(res.data);
@@ -50,7 +41,13 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("username");
+    if (storedUser) setUsername(storedUser);
+    fetchUploads();
+  }, [fetchUploads]);
 
   const calculateStats = (data) => {
     const totalFiles = data.length;
@@ -73,7 +70,7 @@ const Dashboard = () => {
       // Let's find the item first.
       const item = uploads.find(u => u.uniqueId === id);
       
-      await axios.post(`http://localhost:5000/api/upload/delete/${id}`, 
+      await axios.post(`${API_BASE_URL}/api/upload/delete/${id}`, 
         { deleteToken: item.deleteToken }, 
         { headers: { "x-auth-token": token } }
       );
@@ -93,7 +90,7 @@ const Dashboard = () => {
   };
 
   const copyLink = (id) => {
-    const link = `http://localhost:5173/view/${id}`;
+    const link = `${window.location.origin}/view/${id}`;
     navigator.clipboard.writeText(link);
     toast.success("Link copied!");
   };
@@ -114,7 +111,7 @@ const Dashboard = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
+          <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-500/10 rounded-xl"><FileText className="w-8 h-8 text-blue-400" /></div>
               <div>
@@ -122,9 +119,9 @@ const Dashboard = () => {
                 <h3 className="text-3xl font-bold">{stats.totalFiles}</h3>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
+          <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-purple-500/10 rounded-xl"><BarChart3 className="w-8 h-8 text-purple-400" /></div>
               <div>
@@ -132,9 +129,9 @@ const Dashboard = () => {
                 <h3 className="text-3xl font-bold">{stats.totalAccesses}</h3>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
+          <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700/50 shadow-lg">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-green-500/10 rounded-xl"><Activity className="w-8 h-8 text-green-400" /></div>
               <div>
@@ -142,11 +139,11 @@ const Dashboard = () => {
                 <h3 className="text-3xl font-bold">{stats.activeLinks}</h3>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* Files Table */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="bg-gray-800 rounded-2xl border border-gray-700/50 shadow-xl overflow-hidden">
+        <div className="bg-gray-800 rounded-2xl border border-gray-700/50 shadow-xl overflow-hidden">
           <div className="p-6 border-b border-gray-700">
             <h3 className="text-xl font-bold flex items-center gap-2">
               <Shield className="w-5 h-5 text-blue-500" /> Your Secure Files
@@ -212,7 +209,7 @@ const Dashboard = () => {
               </tbody>
             </table>
           </div>
-        </motion.div>
+        </div>
 
       </div>
     </div>

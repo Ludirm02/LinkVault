@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { Trash2, Key, FileDigit, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Trash2, Key, FileDigit, Loader2, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
+import { API_BASE_URL } from "../config";
 
 const ManualDelete = () => {
   const [uniqueId, setUniqueId] = useState("");
@@ -17,7 +17,7 @@ const ManualDelete = () => {
       const token = localStorage.getItem("token");
       
       // We send the deleteToken in the body
-      await axios.post(`http://localhost:5000/api/upload/delete/${uniqueId}`, 
+      await axios.post(`${API_BASE_URL}/api/upload/delete/${uniqueId}`, 
         { deleteToken },
         { headers: token ? { "x-auth-token": token } : {} }
       );
@@ -35,11 +35,7 @@ const ManualDelete = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }} 
-        animate={{ opacity: 1, scale: 1 }} 
-        className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-xl"
-      >
+      <div className="w-full max-w-md bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-700/50 backdrop-blur-xl">
         <div className="text-center mb-8">
           <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <Trash2 className="w-8 h-8 text-red-500" />
@@ -95,7 +91,7 @@ const ManualDelete = () => {
               <strong>Warning:</strong> This action cannot be undone. Once deleted, the file is removed from our servers and Cloudinary instantly.
             </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

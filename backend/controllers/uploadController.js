@@ -215,7 +215,7 @@ exports.uploadContent = async (req, res) => {
         const newUpload = new Upload(uploadData);
         await newUpload.save();
 
-        res.status(201).json({
+        res.status(200).json({
           message: "Upload successful!",
           uniqueId,
           link: `${FRONTEND_BASE_URL}/view/${uniqueId}`,
@@ -234,7 +234,7 @@ exports.uploadContent = async (req, res) => {
       const newUpload = new Upload(uploadData);
       await newUpload.save();
 
-      res.status(201).json({
+      res.status(200).json({
         message: "Text uploaded successfully!",
         uniqueId,
         link: `${FRONTEND_BASE_URL}/view/${uniqueId}`,
@@ -245,6 +245,9 @@ exports.uploadContent = async (req, res) => {
 
   } catch (err) {
     console.error("Upload Error:", err);
+    if (err?.code === 11000) {
+      return res.status(503).json({ error: "Temporary ID collision. Please retry upload." });
+    }
     const cloudinaryErr = classifyCloudinaryError(err);
     if (cloudinaryErr) {
       return res.status(cloudinaryErr.status).json({ error: cloudinaryErr.error });
@@ -275,6 +278,17 @@ exports.getContent = async (req, res) => {
          await cloudinary.uploader.destroy(`linkvault/${id}`); 
       }
       return res.status(403).json({ error: "Access Forbidden: Link is invalid or has expired." });
+    }
+
+    // For files, fail fast on exhausted access limit before asking for password or rendering metadata.
+    if (
+      data.type === "file" &&
+      data.maxDownloads !== null &&
+      data.currentDownloads >= data.maxDownloads
+    ) {
+      await Upload.deleteOne({ uniqueId: id });
+      await cloudinary.uploader.destroy(`linkvault/${id}`).catch(() => {});
+      return res.status(403).json({ error: "Access Forbidden: Max access limit reached." });
     }
 
     // 2. Check Password

@@ -1,25 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
 // 1. Added BarChart3 for the Dashboard icon
 import { LogOut, Trash2, Home, LogIn, UserPlus, Shield, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
 
 const Navbar = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-
-  // Check auth state whenever the route changes
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const hasValidToken = token && token !== "undefined" && token !== "null";
-    setIsAuthenticated(!!hasValidToken); 
-  }, [location]);
+  const token = localStorage.getItem("token");
+  const isAuthenticated = Boolean(token && token !== "undefined" && token !== "null");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username"); // Clear username on logout too
-    setIsAuthenticated(false);
     toast.success("Logged out successfully");
     navigate("/login");
   };
